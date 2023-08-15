@@ -81,7 +81,7 @@ private:
     // ensure that every message gets received in order, or best effort, meaning that the transport
     // makes no guarantees about the order or reliability of delivery.
     qos.reliability(reliability_policy_);
-    pub_ = create_publisher<image_tools::ROSCvMatContainer>("image", qos);
+    pub_ = create_publisher<image_tools::ROSCvMatContainer>("/camera/image_raw", qos);
 
     // Subscribe to a message that will toggle flipping or not flipping, and manage the state in a
     // callback
@@ -96,8 +96,17 @@ private:
 
     if (!burger_mode_) {
       // Initialize OpenCV video capture stream.
-      cap.open(device_id_);
-
+      cap.open("nvarguscamerasrc ! video/x-raw(memory:NVMM), width=" +
+             std::to_string(width_) + ", height=" + std::to_string(height_) +
+             ", format=(string)NV12, framerate=(fraction)30/1 ! nvvidconv "
+             "flip-method=0 ! "
+             "video/x-raw, width=(int)" +
+             std::to_string(width_) + ", height=(int)" +
+             std::to_string(height_) +
+             ", format=(string)BGRx ! "
+             "videoconvert ! appsink drop=1",
+         cv::VideoCaptureAPIs::CAP_GSTREAMER);
+      
       // Set the width and height based on command line arguments.
       cap.set(cv::CAP_PROP_FRAME_WIDTH, static_cast<double>(width_));
       cap.set(cv::CAP_PROP_FRAME_HEIGHT, static_cast<double>(height_));
@@ -151,7 +160,8 @@ private:
     image_tools::ROSCvMatContainer container(frame, header);
 
     // Publish the image message and increment the publish_number_.
-    RCLCPP_INFO(get_logger(), "Publishing image #%zd", publish_number_++);
+    RCLCPP_INFO(get_logger(), "Image N #%zd, rows=%zd, cols=%zd", 
+      publish_number_++, frame.rows, frame.cols);
     pub_->publish(std::move(container));
   }
 
